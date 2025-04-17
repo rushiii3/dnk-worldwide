@@ -13,11 +13,11 @@ const infoLogger = pino({
   level: "info",
   transport: {
     targets: [
-      {
-        target: "pino-pretty",
-        options: { colorize: true },
-        level: "info",
-      },
+      // {
+      //   target: "pino-pretty",
+      //   options: { colorize: true },
+      //   level: "info",
+      // },
       {
         target: "pino/file",
         options: { destination: path.join(logDir, "app.log") },
