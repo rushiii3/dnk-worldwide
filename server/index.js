@@ -9,8 +9,6 @@ const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const bodyParser = require("body-parser");
 const port = process.env.PORT || 4000;
-const mongoSanitize = require('express-mongo-sanitize');
-const xss = require('xss-clean');
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // limit each IP to 100 requests per windowMs
@@ -31,8 +29,6 @@ const server = app.listen(port, async () => {
 });
 const userRoute = require("./Routes/userRoute");
 // Apply the rate limiter to all requests
-app.use(mongoSanitize());
-app.use(xss());
 app.use(limiter);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
