@@ -98,7 +98,7 @@ export const Navbar = () => {
           <div className="md:hidden fixed inset-0 pt-20 flex flex-col items-center z-40">
             <div className="text-center w-full">              
               <nav className="flex flex-col items-center space-y-6 text-white text-xl pt-8">
-                {['Home', 'About Us', 'Track', 'Login'].map((item, index) => (
+                {['Home', 'About Us', 'Track Your Order', 'Login/Sign up'].map((item, index) => (
                   <Link 
                     key={item} 
                     href={item === 'Home' ? '/' : `/${item.toLowerCase().replace(' ', '-')}`}

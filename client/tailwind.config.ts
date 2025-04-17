@@ -15,7 +15,13 @@ const config: Config = {
         md: "2rem",
       },
     },
+    extend: {
+      fontFamily: {
+        sans: ['var(--font-sf-pro)', 'system-ui', 'sans-serif'],
+      },
+    },
   },
+  
   plugins: [],
 };
 export default config;
