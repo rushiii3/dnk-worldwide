@@ -1,10 +1,10 @@
 "use client";
 
+import Faqs from "./components/Faqs";
 import Hero from "./components/Hero";
 import Works from "./components/Works";
+import Footer from "./ui/Footer";
 import { Navbar } from "./ui/Navbar";
-
-
 
 export default function Home() {
   return (
@@ -12,6 +12,8 @@ export default function Home() {
       <Navbar />
       <Hero />
       <Works />
+      <Faqs />
+      <Footer />
     </div>
   );
 }
