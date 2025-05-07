@@ -28,6 +28,8 @@ const server = app.listen(port, async () => {
   }
 });
 const userRoute = require("./Routes/userRoute");
+const migrationRoute = require("./Routes/migrationRoute");
+const shipmentRoute = require("./Routes/shipmentRoute");
 // Apply the rate limiter to all requests
 app.use(limiter);
 app.use(express.json());
@@ -88,6 +90,10 @@ app.get("/", (req, res) => {
   res.send("Hello World!");
 });
 app.use("/api/v1/user", userRoute);
+app.use("/api/v1/migrate", migrationRoute);
+app.use("/api/v1/shipment", shipmentRoute);
+
+
 app.use((req, res) => {
   try {
     if (new Url(req.query.url).host !== "example.com") {
@@ -129,7 +135,7 @@ app.use((err, req, res, next) => {
 
   res
     .status(err.statusCode || 500)
-    .json({ message: err.message || "Internal Server Error" });
+    .json({ message: err.message || "Internal Server Error" , status: false,});
 });
 // Graceful shutdown
 process.on('SIGINT', shutdown);
