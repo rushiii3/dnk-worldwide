@@ -9,6 +9,13 @@ export const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [animateItems, setAnimateItems] = useState(false);
 
+  const navLinks = [
+    { label: 'Home', path: '/' },
+    { label: 'About Us', path: '/about' },
+    { label: 'Track Your Order', path: '/track' },
+    { label: 'Dashboard', path: '/dashboard' },
+  ];
+
   const toggleMenu = () => {
     if (!isMenuOpen) {
       setIsMenuOpen(true);
@@ -36,9 +43,11 @@ export const Navbar = () => {
     <header className="w-full shadow-md relative">
       <div className="flex items-center justify-between px-6 py-4 md:px-12 bg-white">
         {/* Logo - stays in place regardless of menu state */}
-        <div className="font-bold text-3xl md:text-left text-center w-full md:w-auto z-50">
-          <Link href="/">DNK</Link>
-        </div>
+          <Link href="/">
+            <div className="font-bold text-3xl md:text-left text-center w-full md:w-auto z-50">
+              <Image src="/images/logo.jpeg" alt="logo" width={75} height={75} />
+            </div>
+          </Link>
 
         {/* Desktop Navigation */}
         <nav className="hidden md:flex items-center space-x-8">
@@ -99,11 +108,12 @@ export const Navbar = () => {
           {/* Menu container - positioned to not overlap the header */}
           <div className="md:hidden fixed inset-0 pt-20 flex flex-col items-center z-40">
             <div className="text-center w-full">              
-              <nav className="flex flex-col items-center space-y-6 text-white text-xl pt-8">
-                {['Home', 'About Us', 'Track Your Order', 'Login/Sign up'].map((item, index) => (
+              <nav className="mt-20 flex flex-col items-center space-y-6 text-white text-xl pt-8">
+                {navLinks.map((item, index) => (
                   <Link 
-                    key={item} 
-                    href={item === 'Home' ? '/' : `/${item.toLowerCase().replace(' ', '-')}`}
+                    key={item.label} 
+                    href={item.path}
+                    onClick={toggleMenu}
                     className="py-2 px-6 hover:bg-red-500 hover:text-white rounded transition-colors duration-300"
                     style={{
                       opacity: animateItems ? 1 : 0,
@@ -111,7 +121,7 @@ export const Navbar = () => {
                       transition: `opacity 0.5s ease ${index * 0.15}s, transform 0.5s ease ${index * 0.15}s`
                     }}
                   >
-                    {item}
+                    {item.label}
                   </Link>
                 ))}
               </nav>
@@ -126,6 +136,14 @@ export const Navbar = () => {
 export const DashboardNavbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [animateItems, setAnimateItems] = useState(false);
+
+  const navLinks = [
+    { label: 'Profile', path: '/dashboard/profile' },
+    { label: 'Orders', path: '/dashboard/order' },
+    { label: 'Track Your Order', path: '/track' },
+    { label: 'Create an Order', path: '/shipping' },
+    { label: 'Saved Addresses', path: '/dashboard/savedAddress' },
+  ];
 
   const toggleMenu = () => {
     if (!isMenuOpen) {
@@ -154,9 +172,11 @@ export const DashboardNavbar = () => {
     <header className="w-full shadow-md relative">
       <div className="flex items-center justify-between px-6 py-4 md:px-12 bg-white">
         {/* Logo - stays in place regardless of menu state */}
-        <div className="font-bold text-3xl md:text-left text-center w-full md:w-auto z-50">
-          <Image src="/images/logo.jpeg" alt="logo" width={75} height={75} />
-        </div>
+        <Link href="/">
+          <div className="font-bold text-3xl md:text-left text-center w-full md:w-auto z-50">
+            <Image src="/images/logo.jpeg" alt="logo" width={75} height={75} />
+          </div>
+        </Link>
 
         {/* Desktop Auth Buttons */}
         <div className="hidden md:flex space-x-4">
@@ -211,13 +231,15 @@ export const DashboardNavbar = () => {
           />
           
           {/* Menu container - positioned to not overlap the header */}
+
           <div className="md:hidden fixed inset-0 pt-20 flex flex-col items-center z-40">
             <div className="text-center w-full">              
               <nav className="mt-20 flex flex-col items-center space-y-6 text-white text-xl pt-8">
-                {['Profile', 'Orders', 'Track Your Order', 'Create an Order', 'Saved Addresses'].map((item, index) => (
+                {navLinks.map((item, index) => (
                   <Link 
-                    key={item} 
-                    href={item === 'Home' ? '/' : `/${item.toLowerCase().replace(' ', '-')}`}
+                    key={item.label} 
+                    href={item.path}
+                    onClick={toggleMenu}
                     className="py-2 px-6 hover:bg-red-500 hover:text-white rounded transition-colors duration-300"
                     style={{
                       opacity: animateItems ? 1 : 0,
@@ -225,7 +247,7 @@ export const DashboardNavbar = () => {
                       transition: `opacity 0.5s ease ${index * 0.15}s, transform 0.5s ease ${index * 0.15}s`
                     }}
                   >
-                    {item}
+                    {item.label}
                   </Link>
                 ))}
               </nav>
