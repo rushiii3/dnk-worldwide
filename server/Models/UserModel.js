@@ -1,5 +1,4 @@
 const mongoose = require("mongoose");
-
 const userSchema = new mongoose.Schema(
   {
     countryCode: {
@@ -21,10 +20,6 @@ const userSchema = new mongoose.Schema(
       lowercase: true,
       trim: true,
       sparse: true, // Ensures unique works even when email is not provided
-    },
-    country: {
-      type: String,
-      default: "",
     },
     role: {
       type: String,
