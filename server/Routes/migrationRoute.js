@@ -88,8 +88,10 @@ async function extractAndInsertPostalCodes(filePath) {
     const citiesSet = new Set();
   
     data.forEach(row => {
-      const city = (row.CITY || row['City Name'] || '').toUpperCase().trim();
-      const stateName = (row.STATE || row['State Name'] || '').toUpperCase().trim();
+      console.log(row);
+      
+      const city = (row.City || '').toString().toUpperCase().trim();
+      const stateName = (row.State || row['State Name'] || '').toUpperCase().trim();
   
       if (city && stateMap.has(stateName)) {
         const key = JSON.stringify({
@@ -140,13 +142,15 @@ async function migrateData(req, res) {
     
     
     
-    const india = await CountryModel.findOne({ name: "INDIA" });
-    const states = await StateModel.find({ country: india._id }, { name: 1 });
-    const cities = extractCities(path.join(__dirname, "../INDIA.xlsx"), states);
+    const USA = await CountryModel.findOne({ name: "USA" });
+    const states = await StateModel.find({ country: USA._id }, { name: 1 });
+    
+    // const cities = extractCities(path.join(__dirname, "../US.xlsx"), states);
+    
     // const CitiesInsert = await CityModel.insertMany(cities);   
     // extractAndInsertPostalCodes(path.join(__dirname, '../INDIA.xlsx'))
     // .catch(console.error);
-    res.status(200).json({ message: "Data migration successful" });
+    res.status(200).json({ message: "Data migration successful", CitiesInsert:CitiesInsert });
   } catch (error) {
     console.error("Migration error:", error);
     res.status(500).json({ error: "Data migration failed", details: error.message });
