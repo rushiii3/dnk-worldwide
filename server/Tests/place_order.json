@@ -1,0 +1,20 @@
+{
+  "orderType": "domestic",
+  "pickUpAddr": "",
+  "destinationAddr": "",
+  "packageType": "Box",
+  "weightClass": "L",
+  "weightValue": "5",
+  "length": 30,
+  "width": 20,
+  "height": 10,
+  "packageContents": "Books and documents",
+  "packageValue": 1500,
+  "pickUpDay": "2025-05-17T09:00:00.000Z",
+  "deliveryType": "surface",
+  "amount": 200,
+  "razorpayOrderId": "order_Lwrx1234567890",
+  "razorpaySignature": "b4cb21a0a90f3c1c8455a5dfdb9b83ef65859dc1",
+  "razorpayPaymentId": "pay_LwrxPabcdefg"
+}
+

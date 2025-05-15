@@ -20,7 +20,7 @@ const addressSchema = new mongoose.Schema(
     // Address type: Pickup or Delivery
     type: {
       type: String,
-      enum: ["Pickup", "Delivery"],
+      enum: ["pickup", "delivery"],
       required: true,
     },
     label: {
