@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
 import { useState } from "react";
@@ -114,6 +115,42 @@ export default function SchedulePage() {
                 </div>
               </div>
 
+              {/* Time Slot Selection */}
+              <div>
+                <h3 className="font-medium mb-3">Select a time slot</h3>
+                <div className="space-y-3">
+                  {timeSlots.map((slot) => (
+                    <button
+                      key={slot.id}
+                      type="button"
+                      className={`w-full py-3 px-4 flex items-center justify-between rounded-lg border transition-colors ${
+                        selectedTimeSlot === slot.id
+                          ? "bg-blue-100 border-blue-600"
+                          : "bg-white hover:border-blue-600"
+                      }`}
+                      onClick={() => {
+                        setSelectedTimeSlot(slot.id);
+                        setError("");
+                      }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${
+                          selectedTimeSlot === slot.id 
+                            ? "border-blue-600" 
+                            : "border-gray-300"
+                        }`}>
+                          {selectedTimeSlot === slot.id && (
+                            <div className="w-3 h-3 bg-blue-600 rounded-full" />
+                          )}
+                        </div>
+                        <span>{slot.label}</span>
+                      </div>
+                      <span className="text-sm text-green-600 font-medium">Available</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="bg-blue-100 p-4 rounded-lg flex gap-3 items-center">
                 <Clock className="w-5 h-5 text-blue-600" />
                 <div className="text-sm">
@@ -142,7 +179,7 @@ export default function SchedulePage() {
         </div>
 
         <div className="col-span-1 lg:col-span-2 space-y-6">
-          <OrderSummary />
+          <OrderSummary selectedDate={selectedDate} selectedTimeSlot={selectedTimeSlot} timeSlots={timeSlots} />
           <PackagingTips />
         </div>
       </div>
@@ -150,10 +187,21 @@ export default function SchedulePage() {
   );
 }
 
-function OrderSummary() {
+function OrderSummary({ 
+  selectedDate, 
+  selectedTimeSlot, 
+  timeSlots 
+}: { 
+  selectedDate: string; 
+  selectedTimeSlot: string;
+  timeSlots: { id: string; label: string }[];
+}) {
   const { pickupAddress, deliveryAddress, packageDetails } = useShipping();
 
   if (!pickupAddress || !deliveryAddress || !packageDetails) return null;
+
+  // Find the selected time slot label
+  const selectedTimeSlotLabel = timeSlots.find(slot => slot.id === selectedTimeSlot)?.label || "Not selected";
 
   return (
     <div className="bg-white rounded-lg border p-6">
@@ -209,7 +257,20 @@ function OrderSummary() {
 
       <div>
         <h4 className="font-medium mb-3">Pickup Date</h4>
-        <p className="text-sm text-gray-600">Please select a pickup date</p>
+        {selectedDate ? (
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <span className="text-sm text-gray-600">Date:</span>
+              <span className="text-sm">{selectedDate}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-sm text-gray-600">Time:</span>
+              <span className="text-sm">{selectedTimeSlot ? selectedTimeSlotLabel : "Not selected"}</span>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-gray-600">Please select a pickup date</p>
+        )}
       </div>
     </div>
   );

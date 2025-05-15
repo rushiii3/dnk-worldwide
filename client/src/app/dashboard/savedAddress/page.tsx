@@ -80,7 +80,7 @@ export default function SavedAddressPage() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 p-2 lg:p-0">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <MapPin className="size-6" />
@@ -92,7 +92,7 @@ export default function SavedAddressPage() {
         </button>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-4 mt-8">
         {addresses.map((address) => (
           <div key={address.id} className="bg-white rounded-xl shadow-sm overflow-hidden">
             <div className="p-4">

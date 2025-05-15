@@ -1,10 +1,10 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "../../../components/ui/button";
 import { Checkbox } from "../../../components/ui/checkbox";
-import { PackagingTips } from "../../../components/shipping/PackagingTips";
 import { useShipping } from "../../../context/ShippingContext";
 import Link from "next/link";
 import { ChevronLeft, Shield } from "lucide-react";

@@ -12,37 +12,34 @@ export default function DashboardLayout({
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
-    // Check if window is available (client-side)
     if (typeof window !== 'undefined') {
       const checkMobile = () => {
         setIsMobile(window.innerWidth < 768);
       };
-      
-      // Initial check
       checkMobile();
-      
-      // Add event listener for resize
       window.addEventListener('resize', checkMobile);
-      
-      // Cleanup
       return () => window.removeEventListener('resize', checkMobile);
     }
   }, []);
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50">
+    <div className="min-h-screen flex flex-col bg-gray-50 overflow-y-auto">
       <DashboardNavbar />
-      <div className='flex flex-1 w-full'>
-        {/* SideNav - visible only on desktop */}
-        {!isMobile && (
-          <div className='hidden md:block w-1/4 lg:w-1/5 p-4'>
-            <SideNav />
+
+      {/* Centered container for dashboard */}
+      <div className="flex justify-center w-full lg:px-4">
+        <div className="flex w-full justify-center ">
+          {/* SideNav - hidden on mobile */}
+          {!isMobile && (
+            <div className="hidden md:block lg:w-[300px] p-4">
+              <SideNav />
+            </div>
+          )}
+
+          {/* Main content */}
+          <div className="flex flex-col mt-6 w-full lg:max-w-[600px] min-h-[calc(100vh-100px)]">
+            {children}
           </div>
-        )}
-        
-        {/* Main content area */}
-        <div className={`flex-1 p-4 ${isMobile ? 'w-full' : 'md:w-3/4 lg:w-4/5'}`}>
-          {children}
         </div>
       </div>
     </div>
