@@ -60,12 +60,17 @@ const sendOTP = asyncHandler(async (req, res) => {
 
   if (!sessionId) {
     ThrowError("Failed to send OTP. Please try again", 500);
-  }
+  }res.cookie("sessionToken", sessionId, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "Strict",
+    maxAge: 300000,
+  });
   res.status(200).json({
     message: "OTP sent successfully",
-    sessionId, // Return session ID for future validation
     status: true,
   });
+    
 });
 
 const sendTokenResponse = (res, user, accessToken, refreshToken) => {
@@ -96,8 +101,9 @@ const sendTokenResponse = (res, user, accessToken, refreshToken) => {
 };
 
 const verifyOTP = asyncHandler(async (req, res, next) => {
-  const { sessionId, code, countryCode, phoneNumber } = req.body;
+  const { code, countryCode, phoneNumber } = req.body;
 
+  const sessionId = req.cookies.sessionToken;
   // Input validations
   if (!sessionId || !code) {
     ThrowError("Session ID and OTP code are required", 400);
