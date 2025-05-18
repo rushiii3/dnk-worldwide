@@ -19,8 +19,7 @@ const isObjectIdValid = require("../utils/ValidateObjectId.js")
 
 
 const getLocationFromPincode = asyncHandler(async (req, res) => {
-    const { pincode } = req.body;
-
+    const { pincode } = req.params;    
     if (!pincode) {
         ThrowError("Pincode is required", 400);
     }
