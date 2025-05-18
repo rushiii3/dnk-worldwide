@@ -7,31 +7,54 @@ const apiClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  withCredentials: true, 
+  withCredentials: true, // Important for cookies
 });
 
-// Request interceptor for adding auth token
-// Currently we dont need to store token in local storage
-// apiClient.interceptors.request.use(
-//   (config) => {
-//     const token = localStorage.getItem('authToken');
-//     if (token) {
-//       config.headers.Authorization = `Bearer ${token}`;
-//     }
-//     return config;
-//   },
-//   (error) => {
-//     return Promise.reject(error);
-//   }
-// );
+// Add request interceptor to handle token refreshing
+apiClient.interceptors.request.use(
+  async (config) => {
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
 
 // Response interceptor for handling errors
 apiClient.interceptors.response.use(
   (response) => {
     return response;
   },
-  (error) => {
-    // Handle errors globally
+  async (error) => {
+    const originalRequest = error.config;
+    
+    // If error is 401 and we haven't already tried refreshing
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      
+      try {
+        // Try to refresh the token
+        await apiClient.post('/user/refresh-token');
+        
+        // Retry the original request
+        return apiClient(originalRequest);
+      } catch (refreshError) {
+        // If refresh fails, redirect to login
+        if (typeof window !== 'undefined') {
+          // Clear auth state
+          localStorage.removeItem('userInfo');
+          
+          // Only redirect if we're in a browser context
+          if (window.location.pathname !== '/' && 
+              window.location.pathname !== '/') {
+            window.location.href = '/';
+          }
+        }
+        return Promise.reject(refreshError);
+      }
+    }
+    
+    // Handle other errors
     if (error.response) {
       // Server responded with a non-2xx status
       console.error('API Error:', error.response.data);
