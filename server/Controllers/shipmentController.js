@@ -1,16 +1,18 @@
 require("dotenv").config();
 const asyncHandler = require("express-async-handler");
 const ThrowError = require("../utils/ThrowError");
-//const mongoose = require("mongoose");
+const mongoose = require("mongoose");
 //const validator = require("validator");
 const crypto = require("crypto");
+const { PhoneNumberUtil } = require("google-libphonenumber");
+const jwt = require("jsonwebtoken");
 
 const User = require("../Models/UserModel");
 const PostalCodeModel = require("../Models/PostalCodeModel");
-const PackageModel = require("../Models/PackageModel.js");
+const OrderModel = require("../Models/OrderModel.js");
 const AddressModel = require("../Models/AddressModel.js");
 const PaymentModel = require("../Models/PaymentModel.js");
-const isObjectIdValid = require("../utils/ValidateObjectId.js");
+//const isObjectIdValid = require("../utils/ValidateObjectId.js");
 const DeliveryRatesModel = require("../Models/DeliveryRatesModel.js");
 const TaxesModel = require("../Models/TaxesModel.js");
 
@@ -53,8 +55,17 @@ const getLocationFromPincode = asyncHandler(async (req, res) => {
 });
 
 const addAddress = asyncHandler(async (req, res) => {
-  const { contactName, phone, email, flat, area, postalCode, type, label } =
-    req.body;
+  const {
+    contactName,
+    countryCode,
+    phone,
+    email,
+    flat,
+    area,
+    postalCode,
+    type,
+    label,
+  } = req.body;
   const userId = req.user._id;
   const user = await User.findById(userId);
   if (!user) {
@@ -63,8 +74,17 @@ const addAddress = asyncHandler(async (req, res) => {
 
   if (!contactName || contactName.length < 1) {
     ThrowError("Contact name is required", 400);
+  } else if (!countryCode || !phone) {
+    ThrowError("Phone number and country code are required", 400);
+  } else if (!countryCode.match(/^\+\d{1,4}$/)) {
+    ThrowError(
+      "Invalid country code. Format should be '+<countryCode>' (e.g., '+91')",
+      400,
+    );
   } else if (!phone || phone.length < 10) {
     ThrowError("Phone number missing or invalid", 400);
+  } else if (validatePhoneNumber(countryCode, phoneNumber)) {
+    ThrowError(validatePhoneNumber(countryCode, phoneNumber), 400);
   } else if (!email || email.length < 1) {
     ThrowError("Email required ", 400);
   } else if (!RegExp(/^[\w\.\+-]+@([\w-]+\.)+[\w-]+$/).test(email)) {
@@ -75,7 +95,7 @@ const addAddress = asyncHandler(async (req, res) => {
     ThrowError("Area required", 400);
   } else if (!postalCode || postalCode.length < 1) {
     ThrowError("Postalcode required", 400);
-  } else if (!isObjectIdValid(postalCode)) {
+  } else if (!mongoose.Types.ObjectId.isValid(postalCode)) {
     ThrowError("Invalid postal code provided", 400);
   } else if (!type || type.length < 1) {
     ThrowError("Address type  required", 400);
@@ -88,7 +108,7 @@ const addAddress = asyncHandler(async (req, res) => {
   const address = new AddressModel({
     userId: userId,
     contactName: contactName,
-    phoneNumber: phone,
+    phoneNumber: `${countryCode} ${phoneNumber}`,
     email: email,
     flat: flat,
     area: area,
@@ -105,7 +125,7 @@ const addAddress = asyncHandler(async (req, res) => {
 
   return res
     .status(200)
-    .json({ success: true, message: "Address added successfully" });
+    .json({ status: true, message: "Address added successfully" });
 });
 
 const getAddresses = asyncHandler(async (req, res) => {
@@ -164,11 +184,11 @@ const getDeliveryCost = asyncHandler(async (req, res) => {
 
   if (!pickUpAddr || pickUpAddr.length < 1) {
     ThrowError("Pickup address is required", 400);
-  } else if (!isObjectIdValid(pickUpAddr)) {
+  } else if (!mongoose.Types.ObjectId.isValid(pickUpAddr)) {
     ThrowError("Invalid pickup address", 400);
   } else if (!destinationAddr || destinationAddr.length < 1) {
     ThrowError("Destination address is required", 400);
-  } else if (!isObjectIdValid(destinationAddr)) {
+  } else if (!mongoose.Types.ObjectId.isValid(destinationAddr)) {
     ThrowError("Invalid destination address", 400);
   }
   //NOTE: When exact weight is given, min and max weight can be null.
@@ -334,6 +354,27 @@ const getDeliveryCost = asyncHandler(async (req, res) => {
     }),
   );
 
+  //NOTE: This is used when creating an order. This value is checked to ensure that there is no tampering in the createOrder request values.
+  res.cookie(
+    "deliveryCostJWT",
+    jwt.sign(
+      {
+        weight: packageWeight,
+        surface: surfaceCost[surfaceCost.length - 1].amount,
+        express: expressCost[expressCost.length - 1].amount,
+      },
+      process.env.REFRESH_TOKEN_SECRET,
+      {
+        expiresIn: 15 * 60 * 1000,
+      },
+    ),
+    {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "Strict",
+      maxAge: 30 * 60 * 1000,
+    },
+  );
   return res.status(200).json({
     status: true,
     surface: surfaceCost,
@@ -341,29 +382,20 @@ const getDeliveryCost = asyncHandler(async (req, res) => {
   });
 });
 
-const placeOrder = asyncHandler(async (req, res) => {
+const createOrder = asyncHandler(async (req, res) => {
   const {
-    orderType,
+    orderType = "international",
     pickUpAddr,
     destinationAddr,
-    packageType,
-    weightClass,
-    weightValue,
-    length,
-    width,
-    height,
-    packageContents,
-    packageValue,
-    pickUpDay,
-    deliveryType,
-    amount,
-    razorpayOrderId,
-    razorpaySignature,
-    razorpayPaymentId,
-    paymentType,
+    packageInfo,
+    deliveryInfo,
   } = req.body;
 
   const userId = req.user._id;
+  const deliveryCostJWT = req.cookies.deliveryCostJWT;
+  if (!deliveryCostJWT || deliveryCostJWT.length < 1) {
+    ThrowError("Token expired. Please recalculate the cost", 403);
+  }
   const user = await User.findById(userId);
   if (!user) {
     ThrowError("No user found", 404);
@@ -377,43 +409,89 @@ const placeOrder = asyncHandler(async (req, res) => {
     ThrowError("Invalid order type", 400);
   } else if (!pickUpAddr || pickUpAddr.length < 1) {
     ThrowError("Pick up address required", 400);
-  } else if (!isObjectIdValid(pickUpAddr)) {
+  } else if (!mongoose.Types.ObjectId.isValid(pickUpAddr)) {
     ThrowError("Invalid value", 400);
   } else if (!destinationAddr || pickUpAddr.length < 1) {
     ThrowError("Destination address required", 400);
-  } else if (!isObjectIdValid(destinationAddr)) {
+  } else if (!mongoose.Types.ObjectId.isValid(destinationAddr)) {
     ThrowError("Invalid value", 400);
-  } else if (!packageType || packageType.length < 1) {
+  } else if (!packageInfo) {
+    ThrowError("Package info required", 400);
+  } else if (!deliveryInfo) {
+    ThrowError("Delivery info required", 400);
+  }
+
+  //NOTE: Package info validation
+  const {
+    contents,
+    type,
+    value,
+    dimensions,
+    weightClass,
+    minWeight,
+    maxWeight,
+    exactWeight,
+  } = packageInfo;
+
+  let orderDoc = {};
+  if (!type || type.length < 1) {
     ThrowError("Package type required", 400);
+  } else if (!contents || contents.length < 1) {
+    ThrowError("Package contents  required", 400);
+  } else if (!value || value.length < 1) {
+    ThrowError("Package value required", 400);
+  } else if (value > 50000) {
+    ThrowError("Exceeded maximum worth of package that can be shipped", 400);
   } else if (!weightClass || weightClass.length < 1) {
     ThrowError("Weight class required", 400);
-  } else if (!weightValue || weightValue.length < 1) {
-    ThrowError("Weight value required", 400);
-  } else if (weightClass.toLowerCase().trim() == "l") {
-    if (!length && length.length < 1) {
+  } else if (
+    !["xs", "s", "m", "l", "xl"].includes(
+      weightClass.toLowerCase().trim("+").trim(),
+    )
+  ) {
+    ThrowError("Invalid weight class value", 400);
+  }
+
+  //NOTE: When exact weight is given, min and max weight can be null.
+  //When min and max weight are given, exact weight can be null.
+  else if ((minWeight && !maxWeight) || (!minWeight && maxWeight)) {
+    ThrowError("Both minimum weight and max weight are required", 400);
+  } else if (!exactWeight && (!minWeight || !maxWeight)) {
+    ThrowError("Exact weight or min and max weight are required", 400);
+  } else if (exactWeight && !dimensions) {
+    ThrowError("Package dimensions - length, width and height required", 400);
+  } else if (!exactWeight && dimensions) {
+    ThrowError("Exact weight required", 400);
+  }
+
+  //NOTE: package dimensions validation
+  //TODO: Determine when the dimensions should be checked
+
+  let unit = "",
+    width = 0,
+    height = 0,
+    length = 0;
+  if (weightClass.toLowerCase().trim() == "l" || dimensions) {
+    ({ unit, width, height, length } = dimensions);
+    if (!unit || unit.length < 1) {
+      ThrowError("Unit is required", 400);
+    } else if (!["cm", "in"].includes(unit.toLowerCase().trim())) {
+      ThrowError("Invalid unit value. Valid values are 'cm' and 'in' ", 400);
+    } else if (!length || length < 0) {
+      //TODO: in get delivery cost function check whether the length, width and height isnot less than 0
       ThrowError("Length value required", 400);
-    } else if (!decimalRegex.test(length)) {
-      ThrowError("Invalid length value", 400);
-    } else if (!width && width.length < 1) {
+    } else if (!width || width < 0) {
       ThrowError("Width value required", 400);
-    } else if (!decimalRegex.test(width)) {
-      ThrowError("Invalid width value", 400);
-    } else if (!height && height.length < 1) {
+    } else if (!height || height < 0) {
       ThrowError("Height value required", 400);
-    } else if (!decimalRegex.test(height)) {
-      ThrowError("Invalid height value", 400);
     }
-  } else if (!packageContents || packageContents.length < 1) {
-    ThrowError("Package contents value required", 400);
-  } else if (!packageValue || packageValue.length < 1) {
-    ThrowError("Package contents value required", 400);
-  } else if (!decimalRegex.test(packageValue)) {
-    ThrowError("Invalid package value", 400);
-  } else if (parseFloat(packageValue) > 50000) {
-    ThrowError("Exceeded maximum worth of package that can be shipped", 400);
-  } else if (!pickUpDay || pickUpDay.length < 1) {
+  }
+
+  //NOTE:Delivery info validation
+  const { pickupDate, deliveryType, priceSummary } = deliveryInfo;
+  if (!pickupDate || pickupDate.length < 1) {
     ThrowError("Pick up date value required", 400);
-  } else if (Date.parse(pickUpDay) < absoluteDate(Date.now())) {
+  } else if (Date.parse(pickupDate) < absoluteDate(new Date())) {
     ThrowError("Invalid pickup date provided", 400);
   } else if (!deliveryType || deliveryType.length < 1) {
     ThrowError("Delivery Type required", 400);
@@ -422,85 +500,221 @@ const placeOrder = asyncHandler(async (req, res) => {
   ) {
     ThrowError("Invalid Delivery Type", 400);
   }
-  //todo: any more date validation required??
-  else if (!amount || amount.length < 1) {
-    ThrowError("Amount required", 400);
-  } else if (!decimalRegex.test(amount)) {
-    ThrowError("Invalid amount value", 400);
-  } else if (!razorpayOrderId || razorpayOrderId.length < 1) {
-    ThrowError("Razorpay order id ", 400);
-  } else if (!razorpayPaymentId || razorpayPaymentId.length < 1) {
-    ThrowError("Razorpay payment id ", 400);
-  } else if (!razorpaySignature || razorpaySignature.length < 1) {
-    ThrowError("Razorpay signature", 400);
-  } else if (!paymentType || paymentType.length < 1) {
-    ThrowError("Payment type required", 400);
+  //TODO: any more date validation required??
+  else if (!priceSummary || priceSummary.length < 1) {
+    ThrowError("Price summary required", 400);
+  } else if (
+    !(() => {
+      let paymentDocKeys = ["amount", "name", "type", "percent"];
+      priceSummary.forEach((priceDoc) => {
+        Object.keys(priceDoc).forEach((key) => {
+          if (!paymentDocKeys.includes(key)) {
+            return false;
+          } else if (
+            (key == "amount" && parseFloat(priceDoc["amount"]) < 0) ||
+            (key == "percent" && priceDoc["percent"] < 0)
+          ) {
+            return false;
+          } else if (
+            key == "type" &&
+            !["baseAmt", "tax"].includes(priceDoc["type"])
+          ) {
+            return false;
+          } else if (key == "name" && priceDoc["name"].length < 1) {
+            return false;
+          }
+        });
+      });
+      return true;
+    })()
+  ) {
+    ThrowError("Invalid payment object structure", 400);
   }
 
-  //payment validation
-  const generated_signature = crypto
-    .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
-    .update(razorpayOrderId + "|" + razorpayPaymentId)
-    .digest("hex");
+  //  else if (!razorpayOrderId || razorpayOrderId.length < 1) {
+  //   ThrowError("Razorpay order id ", 400);
+  // } else if (!razorpayPaymentId || razorpayPaymentId.length < 1) {
+  //   ThrowError("Razorpay payment id ", 400);
+  // } else if (!razorpaySignature || razorpaySignature.length < 1) {
+  //   ThrowError("Razorpay signature", 400);
+  // } else if (!paymentType || paymentType.length < 1) {
+  //   ThrowError("Payment type required", 400);
+  // }
+  //
+  // //payment validation
+  // const generated_signature = crypto
+  //   .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+  //   .update(razorpayOrderId + "|" + razorpayPaymentId)
+  //   .digest("hex");
+  //
+  // if (generated_signature !== razorpaySignature) {
+  //   //todo: uncomment this later
+  //   //ThrowError("Invalid payment signature", 400);
+  // }
+  //
 
-  if (generated_signature !== razorpaySignature) {
-    //todo: uncomment this later
-    //ThrowError("Invalid payment signature", 400);
+  orderDoc["orderType"] = orderType;
+  orderDoc["sender"] = pickUpAddr;
+  orderDoc["recepient"] = destinationAddr;
+
+  let packageInfoDoc = {};
+  packageInfoDoc.type = type;
+  packageInfoDoc.content = contents;
+  packageInfoDoc.value = value;
+  packageInfoDoc.weightClass = weightClass.toLowerCase().trim();
+
+  let chosenWeightDoc = { magnitude: 0, type: "" };
+  if (exactWeight) {
+    packageInfoDoc.exactWeight = exactWeight;
+  }
+  if (minWeight) {
+    chosenWeightDoc.magnitude = minWeight;
+    chosenWeightDoc.type = "userProvided";
+    packageInfoDoc.minWeight = minWeight;
+  }
+  if (maxWeight) {
+    packageInfoDoc.maxWeight = maxWeight;
   }
 
-  const newOrder = new PackageModel({
-    orderType: orderType,
-    sender: pickUpAddr,
-    recepient: destinationAddr,
-    packageDetails: {
-      packageType: packageType,
-      packageContent: packageContents,
-      weight: weightValue,
-      dimensions: {
-        length: length,
-        width: width,
-        height: height,
-      },
-      packageValue: packageValue,
-    },
-    delivery: {
-      deliveryType: deliveryType.toLowerCase().trim(),
-      pickUpDate: pickUpDay,
-    },
-  });
+  if (dimensions) {
+    let volumetricWeight = 0;
+    if (unit == "cm") {
+      volumetricWeight = (length * width * height) / 5000;
+    } else {
+      volumetricWeight = (length * width * height) / 139;
+    }
 
-  const orderInsertResult = await newOrder.save();
-  console.log(orderInsertResult);
+    chosenWeightDoc.magnitude =
+      exactWeight < volumetricWeight ? volumetricWeight : exactWeight;
+    chosenWeightDoc.type =
+      exactWeight < volumetricWeight ? "volumetric" : "userProvided";
 
-  if (!orderInsertResult || !orderInsertResult.id) {
+    packageInfoDoc["dimensions"] = {
+      length: length,
+      width: width,
+      height: height,
+      unit: unit,
+      volumetricWeight: volumetricWeight,
+    };
+  }
+
+  const {
+    weight = -1,
+    surface = -2,
+    express = -2,
+  } = jwt.verify(deliveryCostJWT, process.env.REFRESH_TOKEN_SECRET);
+  if (
+    chosenWeightDoc.magnitude !== weight ||
+    weight == -1 ||
+    ((surface != priceSummary[priceSummary.length - 1].amount ||
+      surface == -2) &&
+      (express != priceSummary[priceSummary.length - 1].amount ||
+        express == -2))
+  ) {
+    ThrowError(
+      "The weight/dimensions value provided during delivery cost calculation and current weight/dimension values don't match",
+      400,
+    );
+  }
+
+  packageInfoDoc["chosenWeight"] = chosenWeightDoc;
+  orderDoc["packageInfo"] = packageInfoDoc;
+
+  orderDoc["deliveryInfo"] = {
+    deliveryType: deliveryType,
+    pickupDate: pickupDate,
+  };
+
+  const newOrder = new OrderModel(orderDoc);
+
+  const insertedOrder = await newOrder.save();
+  //console.log(insertedOrder);
+
+  if (!insertedOrder || !insertedOrder.id) {
     ThrowError("Insert failed", 500);
   } else {
     const newPayment = new PaymentModel({
-      amount: amount,
-      userId: userId,
-      packageId: orderInsertResult.id,
-      date: new Date(),
-      type: "Card",
-      status: "Completed",
-      transactionDetails: {
-        transactionId: razorpayPaymentId,
-        provider: "Razorpay",
-        metadata: {
-          razorpay_order_id: razorpayOrderId,
-          razorpay_signature: razorpaySignature,
-        },
+      summary: {
+        grandTotal: parseFloat(priceSummary[priceSummary.length - 1].amount),
+        shippingCost: parseFloat(priceSummary[0].amount),
+        taxes: (() => {
+          let taxes = [];
+          priceSummary.forEach((priceDoc) => {
+            priceDoc.amount = parseFloat(priceDoc.amount);
+            if (priceDoc.type == "tax") {
+              taxes.push(priceDoc);
+            }
+          });
+          return taxes;
+        })(),
       },
+      userId: new mongoose.Types.ObjectId(userId),
+      orderId: new mongoose.Types.ObjectId(insertedOrder.id),
+      date: new Date(),
     });
 
     const paymentInsertResult = await newPayment.save();
     if (!paymentInsertResult || !paymentInsertResult.id) {
+      await insertedOrder.deleteOne({ _id: insertedOrder.id });
       Throw("Payment insertion failed", 500);
     } else {
-      return res
-        .status(200)
-        .json({ success: true, message: "Order placed successfully" });
+      //TODO: Generate payment id from Stripe
+      return res.status(200).json({
+        success: true,
+        message: "Order placed successfully",
+        paymentOrderId: "order_stripeIdGoesHere",
+        internalPaymentId: paymentInsertResult.id,
+      });
     }
   }
+});
+
+const onPaymentSuccess = asyncHandler(async (req, res) => {
+  //TODO: Other fields are required here like signature, paymentId, orderId, etc that come from the payment gateway
+
+  const { internalPaymentId, paymentMethod } = req.body;
+
+  //TODO: update the status of the payment
+  const updateResult = await PaymentModel.updateOne(
+    { _id: internalPaymentId },
+    {
+      $set: { method: paymentMethod.toLowerCase().trim(), status: "completed" },
+    },
+  );
+
+  if (!updatedResult || updateResult.modifiedCount != 1) {
+    ThrowError("Failed to update the payment status", 500);
+  }
+
+  return res
+    .status(200)
+    .json({ success: true, message: "payment status updated successfully" });
+});
+
+const onPaymentFailure = asyncHandler(async (req, res) => {
+  //TODO: Other fields are required here like signature, paymentId, orderId, etc that come from the payment gateway
+
+  const { internalPaymentId, paymentMethod, failureReason } = req.body;
+
+  //TODO: update the status of the payment
+  const updateResult = await PaymentModel.updateOne(
+    { _id: internalPaymentId },
+    {
+      $set: {
+        method: paymentMethod.toLowerCase().trim(),
+        status: "failed",
+        failureReason: failureReason,
+      },
+    },
+  );
+
+  if (!updatedResult || updateResult.modifiedCount != 1) {
+    ThrowError("Failed to update the payment status", 500);
+  }
+
+  return res
+    .status(200)
+    .json({ success: true, message: "payment status updated successfully" });
 });
 
 function absoluteDate(date) {
@@ -575,8 +789,10 @@ function calculateShippingCost({ taxes, shippingCost, forCustoms = false }) {
 }
 module.exports = {
   getLocationFromPincode,
-  placeOrder,
+  createOrder,
   getDeliveryCost,
   addAddress,
   getAddresses,
+  onPaymentSuccess,
+  onPaymentFailure,
 };

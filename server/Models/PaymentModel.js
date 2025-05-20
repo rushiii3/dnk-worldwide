@@ -2,15 +2,15 @@ const mongoose = require("mongoose");
 
 const PaymentSchema = new mongoose.Schema(
   {
-    amount: {
-      finalAmount: { type: Number, required: true },
-      baseAmount: { type: Number, required: true },
+    summary: {
+      grandTotal: { type: Number, required: true },
+      shippingCost: { type: Number, required: true },
       taxes: [
         {
           name: { type: String, required: true },
           amount: { type: Number, required: true },
           percent: { type: Number, required: true },
-          type: { type: String, enum: ["sender", "receiver"], required: true },
+          // type: { type: String, enum: ["sender", "receiver"], required: true },
         },
       ],
     },
@@ -18,30 +18,30 @@ const PaymentSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       required: true,
     },
-    packageId: {
+    paymentGateway: {
+      orderId: { type: String, required: true, default: null },
+      metadata: mongoose.Schema.Types.Mixed,
+    },
+
+    orderId: {
       type: mongoose.Schema.Types.ObjectId,
       required: true,
     },
-    date: Date,
-    type: {
+    date: { type: Date, required: true },
+    method: {
       type: String,
-      enum: ["Card", "UPI", "Netbanking"],
-      required: true,
+      enum: ["card", "upi", "netbanking"],
+      default: null,
     },
     status: {
       type: String,
-      enum: ["Pending", "Completed", "Failed", "Refunded"],
-      default: "Pending",
+      enum: ["pending", "successful", "failed", "refunded"],
+      default: "pending",
     },
 
     failureReason: {
       type: String,
       default: null,
-    },
-    transactionDetails: {
-      transactionId: String,
-      provider: String,
-      metadata: mongoose.Schema.Types.Mixed,
     },
   },
   { timestamps: true },

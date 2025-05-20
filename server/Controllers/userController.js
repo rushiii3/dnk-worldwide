@@ -4,7 +4,7 @@ const { generateAccessToken, generateRefreshToken } = require("../utils/token");
 const ThrowError = require("../utils/ThrowError");
 const { PhoneNumberUtil, PhoneNumberFormat } = require("google-libphonenumber");
 const phoneUtil = PhoneNumberUtil.getInstance();
-const PNF = require("google-libphonenumber").PhoneNumberFormat;
+//const PNF = require("google-libphonenumber").PhoneNumberFormat;
 const jwt = require("jsonwebtoken");
 const mongoose = require("mongoose");
 const validator = require("validator");
@@ -17,7 +17,7 @@ const validatePhoneNumber = (countryCode, phoneNumber) => {
     // Parse the full phone number (including country code)
     const number = phoneUtil.parseAndKeepRawInput(
       fullPhoneNumber,
-      countryCode.substring(1)
+      countryCode.substring(1),
     ); // Remove the "+" from country code
     // Validate the phone number
     if (!phoneUtil.isValidNumber(number)) {
@@ -45,7 +45,7 @@ const sendOTP = asyncHandler(async (req, res) => {
   if (!countryCode.match(/^\+\d{1,4}$/)) {
     ThrowError(
       "Invalid country code. Format should be '+<countryCode>' (e.g., '+91')",
-      400
+      400,
     );
   }
 
@@ -60,7 +60,8 @@ const sendOTP = asyncHandler(async (req, res) => {
 
   if (!sessionId) {
     ThrowError("Failed to send OTP. Please try again", 500);
-  }res.cookie("sessionToken", sessionId, {
+  }
+  res.cookie("sessionToken", sessionId, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "Strict",
@@ -70,35 +71,36 @@ const sendOTP = asyncHandler(async (req, res) => {
     message: "OTP sent successfully",
     status: true,
   });
-    
 });
 
-const sendTokenResponse = (res, user, accessToken, refreshToken) => {
-  res.cookie("accessToken", accessToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "Strict",
-    maxAge: 15 * 60 * 1000,
-  });
+//FIX: Why is this function required when it is used only at one place?
 
-  res.cookie("refreshToken", refreshToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "Strict",
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-  });
-
-  res.status(200).json({
-    message: "OTP verified successfully",
-    user: {
-      fullname: user.fullname || "",
-      email: user.email || "",
-      phoneNumber: user.phoneNumber,
-      countryCode: user.countryCode,
-    },
-    status: true,
-  });
-};
+// const sendTokenResponse = (res, user, accessToken, refreshToken) => {
+//   res.cookie("accessToken", accessToken, {
+//     httpOnly: true,
+//     secure: process.env.NODE_ENV === "production",
+//     sameSite: "Strict",
+//     maxAge: 15 * 60 * 1000,
+//   });
+//
+//   res.cookie("refreshToken", refreshToken, {
+//     httpOnly: true,
+//     secure: process.env.NODE_ENV === "production",
+//     sameSite: "Strict",
+//     maxAge: 7 * 24 * 60 * 60 * 1000,
+//   });
+//
+//   res.status(200).json({
+//     message: "OTP verified successfully",
+//     user: {
+//       fullname: user.fullname || "",
+//       email: user.email || "",
+//       phoneNumber: user.phoneNumber,
+//       countryCode: user.countryCode,
+//     },
+//     status: true,
+//   });
+// };
 
 const verifyOTP = asyncHandler(async (req, res, next) => {
   const { code, countryCode, phoneNumber } = req.body;
@@ -146,9 +148,36 @@ const verifyOTP = asyncHandler(async (req, res, next) => {
       expiresAt: new Date(Date.now() + expiresIn),
     });
 
-    await user.save();
+    //FIX: do we need to do this since we have already created the user above?
+    //await user.save();
 
-    sendTokenResponse(res, user, accessToken, refreshToken);
+    res.cookie("accessToken", accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "Strict",
+      maxAge: 15 * 60 * 1000,
+    });
+
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "Strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    res.status(200).json({
+      message: "OTP verified successfully",
+      user: {
+        fullname: user.fullname || "",
+        email: user.email || "",
+        phoneNumber: user.phoneNumber,
+        countryCode: user.countryCode,
+      },
+      status: true,
+    });
+
+    //FIX: Why is a function call required when it is used only at one place?
+    // sendTokenResponse(res, user, accessToken, refreshToken);
   } catch (error) {
     next(error);
   }
@@ -186,11 +215,12 @@ const generateRefreshTokenUser = asyncHandler(async (req, res, next) => {
     });
 
     if (!checkRefreshToken) {
+      const token = await refreshModel.findOne({ user: decoded.id });
       ThrowError("Invalid refresh token", 403);
     }
     const newAccessToken = generateAccessToken(checkRefreshToken.user);
     const newRefreshToken = generateRefreshToken(checkRefreshToken.user);
-    checkRefreshToken.refreshToken = newRefreshToken;
+    checkRefreshToken.token = newRefreshToken;
     await checkRefreshToken.save();
     res.cookie("accessToken", newAccessToken, {
       httpOnly: true,
@@ -249,7 +279,7 @@ const updateUserInfo = asyncHandler(async (req, res, next) => {
   if (!nameRegex.test(fullname)) {
     ThrowError(
       "Fullname must contain only letters and spaces, and be 2 to 50 characters long.",
-      400
+      400,
     );
   }
 
@@ -267,7 +297,7 @@ const updateUserInfo = asyncHandler(async (req, res, next) => {
   const updatedUser = await User.findByIdAndUpdate(
     userId,
     { fullname, email },
-    { new: true }
+    { new: true },
   );
 
   if (!updatedUser) {
