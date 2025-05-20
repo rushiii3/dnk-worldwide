@@ -17,8 +17,7 @@ const TaxesModel = require("../Models/TaxesModel.js");
 //setup razorpay for testing
 
 const getLocationFromPincode = asyncHandler(async (req, res) => {
-  const { pincode } = req.body;
-
+  const { pincode } = req.params;
   if (!pincode) {
     ThrowError("Pincode is required", 400);
   }
